@@ -400,10 +400,36 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
       printf("[SolverMPC] Error: Dimension mismatch! A_qp: %ld, X_d: %ld, Horizon: %d\n",
              A_qp.rows(), X_d.rows(), setup->horizon);
   } else {
-      Matrix<fpt, Dynamic, 1> prediction = A_qp * x_0;
-      Matrix<fpt, Dynamic, 1> error_vec = prediction - X_d;
-      Matrix<fpt, Dynamic, 1> weighted_error = S * error_vec;
-      qg = 2 * B_qp.transpose() * weighted_error;
+      // Explicit loop implementation to avoid Eigen Block assertions on dynamic vectors
+      int horizon = setup->horizon;
+      int state_dim = 13;
+      int control_dim = 12;
+
+      // prediction = A_qp * x_0
+      Matrix<fpt, Dynamic, 1> prediction(state_dim * horizon);
+      for(int r = 0; r < state_dim * horizon; r++) {
+          fpt sum = 0;
+          for(int c = 0; c < state_dim; c++) {
+              sum += A_qp(r,c) * x_0(c);
+          }
+          prediction(r) = sum;
+      }
+
+      // weighted_error = S * (prediction - X_d)
+      // S is diagonal
+      Matrix<fpt, Dynamic, 1> weighted_error(state_dim * horizon);
+      for(int r = 0; r < state_dim * horizon; r++) {
+          weighted_error(r) = S(r,r) * (prediction(r) - X_d(r));
+      }
+
+      // qg = 2 * B_qp^T * weighted_error
+      for(int r = 0; r < control_dim * horizon; r++) {
+          fpt sum = 0;
+          for(int c = 0; c < state_dim * horizon; c++) {
+              sum += B_qp(c, r) * weighted_error(c);
+          }
+          qg(r) = 2 * sum;
+      }
   }
 
   QpProblem<double> jcqp(setup->horizon*12, setup->horizon*20);
