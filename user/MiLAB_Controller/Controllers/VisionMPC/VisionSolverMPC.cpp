@@ -344,27 +344,26 @@ void vision_solve_mpc(vision_mpc_update_data_t* update, vision_mpc_problem_setup
       int state_dim = 13;
       int control_dim = 12;
 
-      // prediction = vA_qp * v_x_0
-      Matrix<fpt, Dynamic, 1> prediction(state_dim * horizon);
+      // Use std::vector to guarantee no Eigen Block operations occur here
+      std::vector<fpt> prediction(state_dim * horizon);
       for(int r = 0; r < state_dim * horizon; r++) {
           fpt sum = 0;
           for(int c = 0; c < state_dim; c++) {
               sum += vA_qp(r,c) * v_x_0(c);
           }
-          prediction(r) = sum;
+          prediction[r] = sum;
       }
 
-      // weighted_error = vS * (prediction - vX_d)
-      Matrix<fpt, Dynamic, 1> weighted_error(state_dim * horizon);
+      std::vector<fpt> weighted_error(state_dim * horizon);
       for(int r = 0; r < state_dim * horizon; r++) {
-          weighted_error(r) = vS(r,r) * (prediction(r) - vX_d(r));
+          weighted_error[r] = vS(r,r) * (prediction[r] - vX_d(r));
       }
 
       // v_qg = 2 * vB_qp^T * weighted_error
       for(int r = 0; r < control_dim * horizon; r++) {
           fpt sum = 0;
           for(int c = 0; c < state_dim * horizon; c++) {
-              sum += vB_qp(c, r) * weighted_error(c);
+              sum += vB_qp(c, r) * weighted_error[c];
           }
           v_qg(r) = 2 * sum;
       }
