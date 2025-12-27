@@ -127,6 +127,11 @@ void c2qp(Matrix<fpt,13,13> Ac, Matrix<fpt,13,12> Bc,fpt dt,s16 horizon)
 
 void resize_qp_mats(s16 horizon)
 {
+  if(horizon <= 0) {
+      printf("[SolverMPC] Error: Resize called with horizon %d\n", horizon);
+      return;
+  }
+
   int mcount = 0;
   int h2 = horizon*horizon;
 
@@ -300,6 +305,9 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
         printf("[SolverMPC] Error: Horizon is %d, returning.\n", setup->horizon);
         return;
     }
+
+    // Debug print
+    // printf("[SolverMPC] solve_mpc called. Horizon: %d, dt: %.4f\n", setup->horizon, setup->dt);
 
     if (milab){
         rs.m = rs.m_milab;
