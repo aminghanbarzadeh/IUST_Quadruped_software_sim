@@ -394,7 +394,17 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
 
 
   qH = 2*(B_qp.transpose()*S*B_qp + update->alpha*eye_12h);
-  qg = 2*B_qp.transpose()*S*(A_qp*x_0 - X_d);
+
+  // Safe decomposed qg calculation
+  if (A_qp.rows() != 13 * setup->horizon || X_d.rows() != 13 * setup->horizon) {
+      printf("[SolverMPC] Error: Dimension mismatch! A_qp: %ld, X_d: %ld, Horizon: %d\n",
+             A_qp.rows(), X_d.rows(), setup->horizon);
+  } else {
+      Matrix<fpt, Dynamic, 1> prediction = A_qp * x_0;
+      Matrix<fpt, Dynamic, 1> error_vec = prediction - X_d;
+      Matrix<fpt, Dynamic, 1> weighted_error = S * error_vec;
+      qg = 2 * B_qp.transpose() * weighted_error;
+  }
 
   QpProblem<double> jcqp(setup->horizon*12, setup->horizon*20);
   if(update->use_jcqp == 1) {
