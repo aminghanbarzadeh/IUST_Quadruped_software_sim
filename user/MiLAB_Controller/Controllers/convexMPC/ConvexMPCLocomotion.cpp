@@ -236,10 +236,6 @@ void ConvexMPCLocomotion::readpacket(int iter,StateEstimate<float> state,LegCont
 #endif
 template<>
 void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
-    // Force disable WBC and Sparse MPC to isolate crash source
-    data.userParameters->use_wbc = 0;
-    data.userParameters->cmpc_use_sparse = 0;
-
     bool omniMode = false;
 #ifdef ABANDONED
     outpacket(data);

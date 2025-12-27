@@ -264,7 +264,6 @@ Matrix<fpt,13,12> vB_ct_r;
 void vision_solve_mpc(vision_mpc_update_data_t* update, vision_mpc_problem_setup* setup)
 {
   if(setup->horizon <= 0) {
-      printf("[VisionSolverMPC] Error: Horizon is %d, returning.\n", setup->horizon);
       return;
   }
 
@@ -338,7 +337,7 @@ void vision_solve_mpc(vision_mpc_update_data_t* update, vision_mpc_problem_setup
   v_qH = 2*(vB_qp.transpose()*vS*vB_qp + update->alpha*v_eye_12h);
 
   if (vA_qp.rows() != 13 * setup->horizon || vX_d.rows() != 13 * setup->horizon) {
-      printf("[VisionSolverMPC] Error: Dimension mismatch!\n");
+      // Dimension mismatch
   } else {
       int horizon = setup->horizon;
       int state_dim = 13;

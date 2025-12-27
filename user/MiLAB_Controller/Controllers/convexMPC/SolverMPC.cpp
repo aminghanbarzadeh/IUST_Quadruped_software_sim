@@ -128,7 +128,6 @@ void c2qp(Matrix<fpt,13,13> Ac, Matrix<fpt,13,12> Bc,fpt dt,s16 horizon)
 void resize_qp_mats(s16 horizon)
 {
   if(horizon <= 0) {
-      printf("[SolverMPC] Error: Resize called with horizon %d\n", horizon);
       return;
   }
 
@@ -302,12 +301,8 @@ Matrix<fpt,13,12> B_ct_r;
 void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
 {
     if(setup->horizon <= 0) {
-        printf("[SolverMPC] Error: Horizon is %d, returning.\n", setup->horizon);
         return;
     }
-
-    // Debug print
-    // printf("[SolverMPC] solve_mpc called. Horizon: %d, dt: %.4f\n", setup->horizon, setup->dt);
 
     if (milab){
         rs.m = rs.m_milab;
@@ -417,8 +412,7 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
 
   // Safe decomposed qg calculation
   if (A_qp.rows() != 13 * setup->horizon || X_d.rows() != 13 * setup->horizon) {
-      printf("[SolverMPC] Error: Dimension mismatch! A_qp: %ld, X_d: %ld, Horizon: %d\n",
-             A_qp.rows(), X_d.rows(), setup->horizon);
+      // Dimension mismatch
   } else {
       // Explicit loop implementation to avoid Eigen Block assertions on dynamic vectors
       int horizon = setup->horizon;
