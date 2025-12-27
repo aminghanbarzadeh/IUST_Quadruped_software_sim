@@ -296,6 +296,11 @@ Matrix<fpt,13,12> B_ct_r;
 
 void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
 {
+    if(setup->horizon <= 0) {
+        printf("[SolverMPC] Error: Horizon is %d, returning.\n", setup->horizon);
+        return;
+    }
+
     if (milab){
         rs.m = rs.m_milab;
         rs.I_body = rs.I_body_milab;
@@ -347,7 +352,14 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
   for(u8 i = 0; i < 12; i++)
     full_weight(i) = update->weights[i];
   full_weight(12) = 0.f;
-  S.diagonal() = full_weight.replicate(setup->horizon,1);
+
+  // Explicit loop for S diagonal to avoid Eigen Block assertions
+  // S.diagonal() = full_weight.replicate(setup->horizon,1);
+  for(int i = 0; i < setup->horizon; i++) {
+      for(int j = 0; j < 13; j++) {
+          S(13*i + j, 13*i + j) = full_weight(j);
+      }
+  }
 
   //trajectory
   for(s16 i = 0; i < setup->horizon; i++)
