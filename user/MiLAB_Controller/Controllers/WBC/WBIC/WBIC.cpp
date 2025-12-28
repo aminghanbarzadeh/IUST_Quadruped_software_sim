@@ -29,6 +29,9 @@ void WBIC<T>::MakeTorque(DVec<T>& cmd, void* extra_input) {
   DMat<T> JcBar;
   DMat<T> Npre;
 
+  // Debug print
+  // if (_dim_rf == 0) printf("[WBIC] Flying phase detected (0 contacts)\n");
+
   if (_dim_rf > 0) {
     // Contact Setting
     _ContactBuilding();
@@ -114,7 +117,10 @@ void WBIC<T>::_SetEqualityConstraint(const DVec<T>& qddot) {
   } else {
     _dyn_CE.block(0, 0, _dim_eq_cstr, _dim_floating) =
       WB::A_.block(0, 0, _dim_floating, _dim_floating);
-    _dyn_ce0 = -WB::Sv_ * (WB::A_ * qddot + WB::cori_ + WB::grav_);
+
+    // Explicit selection instead of Sv_ * vector to avoid Eigen Block assertions on dynamic vectors
+    DVec<T> dyn_vec = WB::A_ * qddot + WB::cori_ + WB::grav_;
+    _dyn_ce0 = -dyn_vec.head(6);
   }
 
   for (size_t i(0); i < _dim_eq_cstr; ++i) {
