@@ -29,9 +29,6 @@ void WBIC<T>::MakeTorque(DVec<T>& cmd, void* extra_input) {
   DMat<T> JcBar;
   DMat<T> Npre;
 
-  // Debug print
-  // if (_dim_rf == 0) printf("[WBIC] Flying phase detected (0 contacts)\n");
-
   if (_dim_rf > 0) {
     // Contact Setting
     _ContactBuilding();
