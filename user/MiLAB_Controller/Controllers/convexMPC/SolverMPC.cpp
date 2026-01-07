@@ -127,6 +127,10 @@ void c2qp(Matrix<fpt,13,13> Ac, Matrix<fpt,13,12> Bc,fpt dt,s16 horizon)
 
 void resize_qp_mats(s16 horizon)
 {
+  if(horizon <= 0) {
+      return;
+  }
+
   int mcount = 0;
   int h2 = horizon*horizon;
 
@@ -296,6 +300,10 @@ Matrix<fpt,13,12> B_ct_r;
 
 void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
 {
+    if(setup->horizon <= 0) {
+        return;
+    }
+
     if (milab){
         rs.m = rs.m_milab;
         rs.I_body = rs.I_body_milab;
@@ -347,7 +355,14 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
   for(u8 i = 0; i < 12; i++)
     full_weight(i) = update->weights[i];
   full_weight(12) = 0.f;
-  S.diagonal() = full_weight.replicate(setup->horizon,1);
+
+  // Explicit loop for S diagonal to avoid Eigen Block assertions
+  // S.diagonal() = full_weight.replicate(setup->horizon,1);
+  for(int i = 0; i < setup->horizon; i++) {
+      for(int j = 0; j < 13; j++) {
+          S(13*i + j, 13*i + j) = full_weight(j);
+      }
+  }
 
   //trajectory
   for(s16 i = 0; i < setup->horizon; i++)
@@ -394,7 +409,41 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
 
 
   qH = 2*(B_qp.transpose()*S*B_qp + update->alpha*eye_12h);
-  qg = 2*B_qp.transpose()*S*(A_qp*x_0 - X_d);
+
+  // Safe decomposed qg calculation
+  if (A_qp.rows() != 13 * setup->horizon || X_d.rows() != 13 * setup->horizon) {
+      // Dimension mismatch
+  } else {
+      // Explicit loop implementation to avoid Eigen Block assertions on dynamic vectors
+      int horizon = setup->horizon;
+      int state_dim = 13;
+      int control_dim = 12;
+
+      // Use std::vector to guarantee no Eigen Block operations occur here
+      std::vector<fpt> prediction(state_dim * horizon);
+      for(int r = 0; r < state_dim * horizon; r++) {
+          fpt sum = 0;
+          for(int c = 0; c < state_dim; c++) {
+              sum += A_qp(r,c) * x_0(c);
+          }
+          prediction[r] = sum;
+      }
+
+      std::vector<fpt> weighted_error(state_dim * horizon);
+      for(int r = 0; r < state_dim * horizon; r++) {
+          // X_d is Eigen Dynamic Vector, accessed via scalar ()
+          weighted_error[r] = S(r,r) * (prediction[r] - X_d(r));
+      }
+
+      // qg = 2 * B_qp^T * weighted_error
+      for(int r = 0; r < control_dim * horizon; r++) {
+          fpt sum = 0;
+          for(int c = 0; c < state_dim * horizon; c++) {
+              sum += B_qp(c, r) * weighted_error[c];
+          }
+          qg(r) = 2 * sum;
+      }
+  }
 
   QpProblem<double> jcqp(setup->horizon*12, setup->horizon*20);
   if(update->use_jcqp == 1) {
@@ -520,22 +569,24 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
       }
 
       if(update->use_jcqp == 0) {
-        Timer solve_timer;
-        qpOASES::QProblem problem_red (new_vars, new_cons);
-        qpOASES::Options op;
-        op.setToMPC();
-        op.printLevel = qpOASES::PL_NONE;
-        problem_red.setOptions(op);
-        //int_t nWSR = 50000;
+        if(new_vars > 0) {
+            Timer solve_timer;
+            qpOASES::QProblem problem_red(new_vars, new_cons);
+            qpOASES::Options op;
+            op.setToMPC();
+            op.printLevel = qpOASES::PL_NONE;
+            problem_red.setOptions(op);
+            //int_t nWSR = 50000;
 
 
-        int rval = problem_red.init(H_red, g_red, A_red, NULL, NULL, lb_red, ub_red, nWSR);
-        (void)rval;
-        int rval2 = problem_red.getPrimalSolution(q_red);
-        if(rval2 != qpOASES::SUCCESSFUL_RETURN)
-          printf("failed to solve!\n");
+            int rval = problem_red.init(H_red, g_red, A_red, NULL, NULL, lb_red, ub_red, nWSR);
+            (void) rval;
+            int rval2 = problem_red.getPrimalSolution(q_red);
+            if (rval2 != qpOASES::SUCCESSFUL_RETURN)
+                printf("failed to solve!\n");
 
-        // printf("solve time: %.3f ms, size %d, %d\n", solve_timer.getMs(), new_vars, new_cons);
+            // printf("solve time: %.3f ms, size %d, %d\n", solve_timer.getMs(), new_vars, new_cons);
+        }
 
 
         vc = 0;
@@ -552,38 +603,39 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
           }
         }
       } else { // use jcqp == 2
-        QpProblem<double> reducedProblem(new_vars, new_cons);
+          if (new_vars > 0) {
+              QpProblem<double> reducedProblem(new_vars, new_cons);
 
-        reducedProblem.A = DenseMatrix<double>(new_cons, new_vars);
-        int i = 0;
-        for(int r = 0; r < new_cons; r++) {
-          for(int c = 0; c < new_vars; c++) {
-            reducedProblem.A(r,c) = A_red[i++];
-          }
-        }
+              reducedProblem.A = DenseMatrix<double>(new_cons, new_vars);
+              int i = 0;
+              for (int r = 0; r < new_cons; r++) {
+                  for (int c = 0; c < new_vars; c++) {
+                      reducedProblem.A(r, c) = A_red[i++];
+                  }
+              }
 
-        reducedProblem.P = DenseMatrix<double>(new_vars, new_vars);
-        i = 0;
-        for(int r = 0; r < new_vars; r++) {
-          for(int c = 0; c < new_vars; c++) {
-            reducedProblem.P(r,c) = H_red[i++];
-          }
-        }
+              reducedProblem.P = DenseMatrix<double>(new_vars, new_vars);
+              i = 0;
+              for (int r = 0; r < new_vars; r++) {
+                  for (int c = 0; c < new_vars; c++) {
+                      reducedProblem.P(r, c) = H_red[i++];
+                  }
+              }
 
-        reducedProblem.q = Vector<double>(new_vars);
-        for(int r = 0; r < new_vars; r++) {
-          reducedProblem.q[r] = g_red[r];
-        }
+              reducedProblem.q = Vector<double>(new_vars);
+              for (int r = 0; r < new_vars; r++) {
+                  reducedProblem.q[r] = g_red[r];
+              }
 
-        reducedProblem.u = Vector<double>(new_cons);
-        for(int r = 0; r < new_cons; r++) {
-          reducedProblem.u[r] = ub_red[r];
-        }
+              reducedProblem.u = Vector<double>(new_cons);
+              for (int r = 0; r < new_cons; r++) {
+                  reducedProblem.u[r] = ub_red[r];
+              }
 
-        reducedProblem.l = Vector<double>(new_cons);
-        for(int r = 0; r < new_cons; r++) {
-          reducedProblem.l[r] = lb_red[r];
-        }
+              reducedProblem.l = Vector<double>(new_cons);
+              for (int r = 0; r < new_cons; r++) {
+                  reducedProblem.l[r] = lb_red[r];
+              }
 
 //        jcqp.A = fmat.cast<double>();
 //        jcqp.P = qH.cast<double>();
@@ -592,26 +644,28 @@ void solve_mpc(update_data_t* update, problem_setup* setup, bool milab)
 //        for(s16 i = 0; i < 20*setup->horizon; i++)
 //          jcqp.l[i] = 0.;
 
-        reducedProblem.settings.sigma = update->sigma;
-        reducedProblem.settings.alpha = update->solver_alpha;
-        reducedProblem.settings.terminate = update->terminate;
-        reducedProblem.settings.rho = update->rho;
-        reducedProblem.settings.maxIterations = update->max_iterations;
-        reducedProblem.runFromDense(update->max_iterations, true, false);
+              reducedProblem.settings.sigma = update->sigma;
+              reducedProblem.settings.alpha = update->solver_alpha;
+              reducedProblem.settings.terminate = update->terminate;
+              reducedProblem.settings.rho = update->rho;
+              reducedProblem.settings.maxIterations = update->max_iterations;
+              reducedProblem.runFromDense(update->max_iterations, true, false);
 
-        vc = 0;
-        for(int kk = 0; kk < num_variables; kk++)
-        {
-          if(var_elim[kk])
-          {
-            q_soln[kk] = 0.0f;
+              vc = 0;
+              for (int kk = 0; kk < num_variables; kk++) {
+                  if (var_elim[kk]) {
+                      q_soln[kk] = 0.0f;
+                  } else {
+                      q_soln[kk] = reducedProblem.getSolution()[vc];
+                      vc++;
+                  }
+              }
+          } else {
+              // all variables eliminated
+              for (int kk = 0; kk < num_variables; kk++) {
+                  q_soln[kk] = 0.0f;
+              }
           }
-          else
-          {
-            q_soln[kk] = reducedProblem.getSolution()[vc];
-            vc++;
-          }
-        }
       }
 
     }

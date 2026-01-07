@@ -263,6 +263,10 @@ Matrix<fpt,13,12> vB_ct_r;
 
 void vision_solve_mpc(vision_mpc_update_data_t* update, vision_mpc_problem_setup* setup)
 {
+  if(setup->horizon <= 0) {
+      return;
+  }
+
   v_rs.set(update->p, update->v, update->q, update->w, update->r, update->yaw);
 
   //roll pitch yaw
@@ -283,7 +287,13 @@ void vision_solve_mpc(vision_mpc_update_data_t* update, vision_mpc_problem_setup
   for(u8 i = 0; i < 12; i++)
     full_weight(i) = update->weights[i];
   full_weight(12) = 0.f;
-  vS.diagonal() = full_weight.replicate(setup->horizon,1);
+
+  // vS.diagonal() = full_weight.replicate(setup->horizon,1);
+  for(int i = 0; i < setup->horizon; i++) {
+      for(int j = 0; j < 13; j++) {
+          vS(13*i + j, 13*i + j) = full_weight(j);
+      }
+  }
 
   //trajectory
   for(s16 i = 0; i < setup->horizon; i++)
@@ -325,7 +335,38 @@ void vision_solve_mpc(vision_mpc_update_data_t* update, vision_mpc_problem_setup
   }
 
   v_qH = 2*(vB_qp.transpose()*vS*vB_qp + update->alpha*v_eye_12h);
-  v_qg = 2*vB_qp.transpose()*vS*(vA_qp*v_x_0 - vX_d);
+
+  if (vA_qp.rows() != 13 * setup->horizon || vX_d.rows() != 13 * setup->horizon) {
+      // Dimension mismatch
+  } else {
+      int horizon = setup->horizon;
+      int state_dim = 13;
+      int control_dim = 12;
+
+      // Use std::vector to guarantee no Eigen Block operations occur here
+      std::vector<fpt> prediction(state_dim * horizon);
+      for(int r = 0; r < state_dim * horizon; r++) {
+          fpt sum = 0;
+          for(int c = 0; c < state_dim; c++) {
+              sum += vA_qp(r,c) * v_x_0(c);
+          }
+          prediction[r] = sum;
+      }
+
+      std::vector<fpt> weighted_error(state_dim * horizon);
+      for(int r = 0; r < state_dim * horizon; r++) {
+          weighted_error[r] = vS(r,r) * (prediction[r] - vX_d(r));
+      }
+
+      // v_qg = 2 * vB_qp^T * weighted_error
+      for(int r = 0; r < control_dim * horizon; r++) {
+          fpt sum = 0;
+          for(int c = 0; c < state_dim * horizon; c++) {
+              sum += vB_qp(c, r) * weighted_error[c];
+          }
+          v_qg(r) = 2 * sum;
+      }
+  }
 
 
   v_matrix_to_real(vH_qpoases,v_qH,setup->horizon*12, setup->horizon*12);
@@ -378,75 +419,77 @@ void vision_solve_mpc(vision_mpc_update_data_t* update, vision_mpc_problem_setup
   //if(new_vars != num_variables)
   if(1==1)
   {
-    int var_ind[new_vars];
-    int v_con_ind[new_cons];
-    int vc = 0;
-    for(int i = 0; i < num_variables; i++)
-    {
-      if(!v_var_elim[i])
-      {
-        if(!(vc<new_vars))
+    if (new_vars > 0) {
+        int var_ind[new_vars];
+        int v_con_ind[new_cons];
+        int vc = 0;
+        for(int i = 0; i < num_variables; i++)
         {
-          printf("BAD ERROR 1\n");
+          if(!v_var_elim[i])
+          {
+            if(!(vc<new_vars))
+            {
+              printf("BAD ERROR 1\n");
+            }
+            var_ind[vc] = i;
+            vc++;
+          }
         }
-        var_ind[vc] = i;
-        vc++;
-      }
-    }
-    vc = 0;
-    for(int i = 0; i < num_constraints; i++)
-    {
-      if(!v_con_elim[i])
-      {
-        if(!(vc<new_cons))
+        vc = 0;
+        for(int i = 0; i < num_constraints; i++)
         {
-          printf("BAD ERROR 1\n");
+          if(!v_con_elim[i])
+          {
+            if(!(vc<new_cons))
+            {
+              printf("BAD ERROR 1\n");
+            }
+            v_con_ind[vc] = i;
+            vc++;
+          }
         }
-        v_con_ind[vc] = i;
-        vc++;
-      }
+        for(int i = 0; i < new_vars; i++)
+        {
+          int olda = var_ind[i];
+          vg_red[i] = vg_qpoases[olda];
+          for(int j = 0; j < new_vars; j++)
+          {
+            int oldb = var_ind[j];
+            vH_red[i*new_vars + j] = vH_qpoases[olda*num_variables + oldb];
+          }
+        }
+
+        for (int con = 0; con < new_cons; con++)
+        {
+          for(int st = 0; st < new_vars; st++)
+          {
+            float cval = vA_qpoases[(num_variables*v_con_ind[con]) + var_ind[st] ];
+            vA_red[con*new_vars + st] = cval;
+          }
+        }
+        for(int i = 0; i < new_cons; i++)
+        {
+          int old = v_con_ind[i];
+          vub_red[i] = vub_qpoases[old];
+          vlb_red[i] = vlb_qpoases[old];
+        }
+
+        qpOASES::QProblem problem_red (new_vars, new_cons);
+        qpOASES::Options op;
+        op.setToMPC();
+        op.printLevel = qpOASES::PL_NONE;
+        problem_red.setOptions(op);
+        //int_t nWSR = 50000;
+
+
+        int rval = problem_red.init(vH_red, vg_red, vA_red, NULL, NULL, vlb_red, vub_red, nWSR);
+        (void)rval;
+        int rval2 = problem_red.getPrimalSolution(vq_red);
+        if(rval2 != qpOASES::SUCCESSFUL_RETURN)
+          printf("failed to solve!\n");
+
+        // printf("solve time: %.3f ms, size %d, %d\n", solve_timer.getMs(), new_vars, new_cons);
     }
-    for(int i = 0; i < new_vars; i++)
-    {
-      int olda = var_ind[i];
-      vg_red[i] = vg_qpoases[olda];
-      for(int j = 0; j < new_vars; j++)
-      {
-        int oldb = var_ind[j];
-        vH_red[i*new_vars + j] = vH_qpoases[olda*num_variables + oldb];
-      }
-    }
-
-    for (int con = 0; con < new_cons; con++)
-    {
-      for(int st = 0; st < new_vars; st++)
-      {
-        float cval = vA_qpoases[(num_variables*v_con_ind[con]) + var_ind[st] ];
-        vA_red[con*new_vars + st] = cval;
-      }
-    }
-    for(int i = 0; i < new_cons; i++)
-    {
-      int old = v_con_ind[i];
-      vub_red[i] = vub_qpoases[old];
-      vlb_red[i] = vlb_qpoases[old];
-    }
-
-    qpOASES::QProblem problem_red (new_vars, new_cons);
-    qpOASES::Options op;
-    op.setToMPC();
-    op.printLevel = qpOASES::PL_NONE;
-    problem_red.setOptions(op);
-    //int_t nWSR = 50000;
-
-
-    int rval = problem_red.init(vH_red, vg_red, vA_red, NULL, NULL, vlb_red, vub_red, nWSR);
-    (void)rval;
-    int rval2 = problem_red.getPrimalSolution(vq_red);
-    if(rval2 != qpOASES::SUCCESSFUL_RETURN)
-      printf("failed to solve!\n");
-
-    // printf("solve time: %.3f ms, size %d, %d\n", solve_timer.getMs(), new_vars, new_cons);
 
 
     vc = 0;
