@@ -27,10 +27,27 @@ SingleContact<T>::SingleContact(const FloatingBaseModel<T>* robot, int pt)
 
   // Upper bound of normal force
   Contact::Uf_(5, 2) = -1.;
+
+  _Kp = DVec<T>::Zero(3);
+  _Kd = DVec<T>::Zero(3);
+  _pos_des = DVec<T>::Zero(3);
+  _vel_des = DVec<T>::Zero(3);
 }
 
 template <typename T>
 SingleContact<T>::~SingleContact() {}
+
+template <typename T>
+void SingleContact<T>::setFootStateDes(const DVec<T>& pos, const DVec<T>& vel) {
+  _pos_des = pos;
+  _vel_des = vel;
+}
+
+template <typename T>
+void SingleContact<T>::setKpKd(const DVec<T>& Kp, const DVec<T>& Kd) {
+  _Kp = Kp;
+  _Kd = Kd;
+}
 
 template <typename T>
 bool SingleContact<T>::_UpdateJc() {
@@ -49,6 +66,13 @@ bool SingleContact<T>::_UpdateJc() {
 template <typename T>
 bool SingleContact<T>::_UpdateJcDotQdot() {
   Contact::JcDotQdot_ = robot_sys_->_Jcdqd[_contact_pt];
+
+  DVec<T> pos = robot_sys_->_pGC[_contact_pt];
+  DVec<T> vel = robot_sys_->_vGC[_contact_pt];
+
+  DVec<T> acc_des = _Kp.cwiseProduct(_pos_des - pos) + _Kd.cwiseProduct(_vel_des - vel);
+  Contact::JcDotQdot_ -= acc_des;
+
   // pretty_print(Contact::JcDotQdot_, std::cout, "JcDotQdot");
   return true;
 }
