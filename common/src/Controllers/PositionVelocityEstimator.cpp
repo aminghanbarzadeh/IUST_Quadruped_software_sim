@@ -180,6 +180,15 @@ void LinearKFPositionVelocityEstimator<T>::run() {
   this->_stateEstimatorData.result->vBody =
       this->_stateEstimatorData.result->rBody *
       this->_stateEstimatorData.result->vWorld;
+
+  if(this->_stateEstimatorData.result->contactEstimate.sum() == 0){
+      this->_stateEstimatorData.result->position[0] = 0;
+      this->_stateEstimatorData.result->position[1] = 0;
+      this->_stateEstimatorData.result->position[2] = 0.3;
+      this->_stateEstimatorData.result->vWorld.setZero();
+      this->_stateEstimatorData.result->vBody.setZero();
+      _xhat.setZero();
+  }
 }
 
 template class LinearKFPositionVelocityEstimator<float>;
