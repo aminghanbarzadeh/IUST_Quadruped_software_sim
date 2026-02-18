@@ -21,8 +21,8 @@ foot_height_sensor_noise      :  0.001    # Noise for the foot height sensor
 foot_process_noise_position   :  0.002    # Noise for the foot process position
 foot_sensor_noise_position    :  0.001    # Noise for the foot sensor position
 foot_sensor_noise_velocity    :  0.1      # Noise for the foot sensor velocity
-imu_process_noise_position    :  0.02     # Noise for the IMU process position
-imu_process_noise_velocity    :  0.02     # Noise for the IMU process velocity
+imu_process_noise_position    :  0.2      # Noise for the IMU process position
+imu_process_noise_velocity    :  0.2      # Noise for the IMU process velocity
 
 kpCOM: [50, 50, 50]          # Proportional gain for the robot's center of mass
 kdCOM: [10, 10, 10]          # Derivative gain for the robot's center of mass
