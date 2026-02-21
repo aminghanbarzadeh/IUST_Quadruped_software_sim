@@ -635,7 +635,21 @@ void IUSTrobotHardwareBridge::initHardware() {
   }
 #endif
     CANable.init_can();
-    _microstrainInit = _microstrainImu.tryInit(0,460800 );//921600
+    _microstrainInit = _microstrainImu.tryInit(0, 460800);
+    if (!_microstrainInit) {
+        printf("[IUSTHardware] Failed to init microstrain at 460800, trying 921600...\n");
+        _microstrainInit = _microstrainImu.tryInit(0, 921600);
+    }
+    if (!_microstrainInit) {
+         printf("[IUSTHardware] Failed to init microstrain at 921600, trying 115200...\n");
+        _microstrainInit = _microstrainImu.tryInit(0, 115200);
+    }
+
+    if (_microstrainInit) {
+        printf("[IUSTHardware] Microstrain initialized successfully!\n");
+    } else {
+        printf("[IUSTHardware] Failed to init microstrain IMU!\n");
+    }
 }
 /*!
  * Main method for IUST robot hardware

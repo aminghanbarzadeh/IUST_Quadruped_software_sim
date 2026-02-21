@@ -50,12 +50,14 @@ void LordImu::mode_setup() {
   u8 com_mode = MIP_SDK_STANDARD_MODE;
   printf("[Lord IMU] Set direct mode\n");
 
-  while(mip_system_com_mode(&device_interface, MIP_FUNCTION_SELECTOR_WRITE, &com_mode) != MIP_INTERFACE_OK) {
+  if(mip_system_com_mode(&device_interface, MIP_FUNCTION_SELECTOR_WRITE, &com_mode) != MIP_INTERFACE_OK) {
     printf("failed to set com mode\n");
+    throw std::runtime_error("failed to set com mode");
   }
 
-  while(mip_system_com_mode(&device_interface, MIP_FUNCTION_SELECTOR_READ, &com_mode) != MIP_INTERFACE_OK) {
+  if(mip_system_com_mode(&device_interface, MIP_FUNCTION_SELECTOR_READ, &com_mode) != MIP_INTERFACE_OK) {
     printf("failed to read com mode\n");
+    throw std::runtime_error("failed to read com mode");
   }
 
   if(com_mode != MIP_SDK_STANDARD_MODE) {
@@ -67,16 +69,18 @@ void LordImu::mode_setup() {
   usleep(100000);
 
 
-  while(mip_base_cmd_idle(&device_interface) != MIP_INTERFACE_OK){
+  if(mip_base_cmd_idle(&device_interface) != MIP_INTERFACE_OK){
     printf("idle fail\n");
+    throw std::runtime_error("idle fail");
   }
 
   usleep(100000);
 
   printf("[Lord IMU] Ping...\n");
 
-  while(mip_base_cmd_ping(&device_interface) != MIP_INTERFACE_OK){
-    printf("fail\n");
+  if(mip_base_cmd_ping(&device_interface) != MIP_INTERFACE_OK){
+    printf("ping fail\n");
+    throw std::runtime_error("ping fail");
   }
 }
 
