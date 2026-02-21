@@ -20,7 +20,8 @@
 #include <lcm/lcm-cpp.hpp>
 #include <lord_imu/LordImu.h>
 
-#include "RobotRunner.h"
+#include <RobotRunner.h>
+#include <RobotController.h>
 #include "Utilities/PeriodicTask.h"
 #include "control_parameter_request_lcmt.hpp"
 #include "control_parameter_respones_lcmt.hpp"
@@ -32,6 +33,32 @@
 #include "ecat_data_t.hpp"
 #include "rt/rt_can.h"
 
+#include "Utilities/SharedMemory.h"
+#include "SimUtilities/SimulatorMessage.h"
+#include "SimUtilities/GamepadCommand.h"
+#include "rt/rt_rc_interface.h"
+
+/*
+Basic libraries for Yesense
+*/
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <cstring>
+#include <unistd.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <analysis_data.h> // Ensure this is compatible with C++
+
+#define TRUE 		1
+#define FALSE 		-1
+#define RX_BUF_LEN	512
+
+struct YesenseIMU {
+    float acc[3];
+    float gyro[3];
+    float quat[4];
+};
 
 /*!
  * Interface between robot and hardware
@@ -168,6 +195,14 @@ public:
    * Logs the Microstrain data
    */
   void logMicrostrain();
+  /*!
+   * Init the Yesense
+   */
+  void initYesense();
+  /*!
+   * run the Yesense
+   */
+  void runYesense();
 
 private:
   CAN CANable;
@@ -176,10 +211,24 @@ private:
   lcm::LCM _microstrainLcm;
   std::thread* _microstrainThread;
   LordImu _microstrainImu;
+  YesenseIMU _YesenseIMU;
   microstrain_lcmt _microstrainData;
   bool _microstrainInit = false;
   bool _load_parameters_from_file;
   u64 spi_times=0;
+  SharedMemoryObject<SimulatorSyncronizedMessage> _sharedMemory;
+
+  /* Parameters for Yesense IMU */
+  unsigned char g_recv_buf[512] = {0};
+  unsigned short g_recv_buf_idx = 0;
+  protocol_info_t g_output_info;
+  int fd_y;
+  int nread;
+  char buffer[RX_BUF_LEN];
+  char* dev  = NULL;
+  struct termios oldtio,newtio;
+  unsigned short cnt = 0;
+  int pos = 0;
 };
 
 /*!
