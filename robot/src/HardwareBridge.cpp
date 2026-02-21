@@ -630,6 +630,13 @@ void IUSTrobotHardwareBridge::initHardware() {
     _vectorNavData.quat << 0, 0, 0, 1;
     _vectorNavData.accelerometer << 0, 0, 9.81;
     _vectorNavData.gyro.setZero();
+
+    // Initialize YesenseIMU structure to safe defaults to prevent NaN/Garbage
+    // if the driver fails to read data immediately.
+    _YesenseIMU.acc[0] = 0; _YesenseIMU.acc[1] = 0; _YesenseIMU.acc[2] = 9.81;
+    _YesenseIMU.gyro[0] = 0; _YesenseIMU.gyro[1] = 0; _YesenseIMU.gyro[2] = 0;
+    _YesenseIMU.quat[0] = 0; _YesenseIMU.quat[1] = 0; _YesenseIMU.quat[2] = 0; _YesenseIMU.quat[3] = 1;
+
     printf("[IUSTHardware] I am using hardwareBridge:)\n");
 #ifndef USE_MICROSTRAIN
     printf("[IUSTHardware] Init vectornav\n");
