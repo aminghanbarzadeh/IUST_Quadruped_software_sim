@@ -840,15 +840,21 @@ void IUSTrobotHardwareBridge::runMicrostrain() {
         runYesense();
 
         #ifdef USE_MICROSTRAIN
-        _vectorNavData.accelerometer = _YesenseIMU.acc;
-        _vectorNavData.quat[0] = _YesenseIMU.quat[1];
-        _vectorNavData.quat[1] = _YesenseIMU.quat[2];
-        _vectorNavData.quat[2] = _YesenseIMU.quat[3];
-        _vectorNavData.quat[3] = _YesenseIMU.quat[0];
-        _vectorNavData.gyro = _YesenseIMU.gyro;
+        // Explicit assignment to avoid type mismatch between float array and Eigen Vector
+        _vectorNavData.accelerometer << _YesenseIMU.acc[0], _YesenseIMU.acc[1], _YesenseIMU.acc[2];
+        _vectorNavData.gyro << _YesenseIMU.gyro[0], _YesenseIMU.gyro[1], _YesenseIMU.gyro[2];
+
+        // Swizzle quaternion from [w,x,y,z] (Yesense) to [x,y,z,w] (VectorNavData)
+        _vectorNavData.quat << _YesenseIMU.quat[1], _YesenseIMU.quat[2], _YesenseIMU.quat[3], _YesenseIMU.quat[0];
         #endif
 
         imu_times++;
+        if (imu_times % 1000 == 0) {
+             printf("[Yesense] Acc: %.2f, %.2f, %.2f | Gyro: %.2f, %.2f, %.2f | Quat: %.2f, %.2f, %.2f, %.2f\n",
+                    _YesenseIMU.acc[0], _YesenseIMU.acc[1], _YesenseIMU.acc[2],
+                    _YesenseIMU.gyro[0], _YesenseIMU.gyro[1], _YesenseIMU.gyro[2],
+                    _YesenseIMU.quat[0], _YesenseIMU.quat[1], _YesenseIMU.quat[2], _YesenseIMU.quat[3]);
+        }
         #ifdef IMU_DEBUG_SHOW
         if(imu_times%1000==0)
         {
