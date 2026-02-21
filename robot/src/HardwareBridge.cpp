@@ -623,8 +623,8 @@ IUSTrobotHardwareBridge::IUSTrobotHardwareBridge(RobotController* robot_ctrl, bo
  * Initialize IUST specific hardware
  */
 void IUSTrobotHardwareBridge::initHardware() {
-    _vectorNavData.quat << 1, 0, 0, 0;
-    _vectorNavData.accelerometer.setZero();
+    _vectorNavData.quat << 0, 0, 0, 1;
+    _vectorNavData.accelerometer << 0, 0, 9.81;
     _vectorNavData.gyro.setZero();
     printf("[IUSTHardware] I am using hardwareBridge:)\n");
 #ifndef USE_MICROSTRAIN
