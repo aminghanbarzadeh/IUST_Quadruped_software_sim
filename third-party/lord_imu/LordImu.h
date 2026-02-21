@@ -83,9 +83,9 @@ public:
   u32 unknown_packets = 0;
   u32 good_packets = 0;
 
-  Vec3<float> gyro;
-  Vec3<float> acc;
-  Vec4<float> quat;
+  Vec3<float> gyro = Vec3<float>::Zero();
+  Vec3<float> acc = Vec3<float>(0, 0, 9.81);
+  Vec4<float> quat = Vec4<float>(0, 0, 0, 1);
 
 
 private:

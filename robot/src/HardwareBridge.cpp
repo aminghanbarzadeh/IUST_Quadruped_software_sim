@@ -649,6 +649,7 @@ void IUSTrobotHardwareBridge::initHardware() {
         printf("[IUSTHardware] Microstrain initialized successfully!\n");
     } else {
         printf("[IUSTHardware] Failed to init microstrain IMU!\n");
+        _microstrainInit = false;
     }
 }
 /*!
@@ -809,6 +810,8 @@ void IUSTrobotHardwareBridge::run() {
 void IUSTrobotHardwareBridge::runMicrostrain() {
     printf("[HardwareBridge] Start microstrain\n");
     u64 imu_times=0;
+
+    if (!_microstrainInit) return;
 
     while (true) {
         _microstrainImu.run();
