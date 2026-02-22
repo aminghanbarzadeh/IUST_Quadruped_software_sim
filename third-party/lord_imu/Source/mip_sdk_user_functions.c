@@ -108,7 +108,7 @@ u16 mip_sdk_port_open(void **port_handle, int port_num, int baudrate)
 //#ifdef USE_USB_CONNECTION
  
  //all USB connections appear on ttyACM# 
- strcat(port_name, "/dev/ttyUSB");
+ strcat(port_name, "/dev/ttyACM");
 //
 //#else
 //

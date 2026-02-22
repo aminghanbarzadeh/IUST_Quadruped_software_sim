@@ -20,9 +20,9 @@
 #include "rt/rt_vectornav.h"
 #include "rt/rt_ethercat.h"
 #include "Utilities/Utilities_print.h"
-#include "rt/rt_joystick_interface.h"
+
 #define USE_MICROSTRAIN
-// #define IMU_DEBUG_SHOW
+//#define IMU_DEBUG_SHOW
 //#define SPI_DEBUG_SHOW
 //#define JPOS_CTRL
 //#define SPI_CTRL
@@ -126,18 +126,15 @@ void HardwareBridge::run_sbus() {
     // printf("--------------------------------------*****\n");
     if (_port > 0) {
         // printf("AFTERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR\n");
-        //int x = receive_sbus(_port);
+        int x = receive_sbus(_port);
         // printf("77777777777777777777777777777777777777777\n");
-        //std::cout<<x<<std::endl;
+        std::cout<<x<<std::endl;
         // printf("88888888888888888888888888888888888888888\n");
-        // int x = receive_sbus(_port);
-        int x = receive_data(_port);
         if (x) {
-            // sbus_packet_complete();
-            update_joystick();
+            sbus_packet_complete();
         } else  printf("[HARDWARE BRIDGE] Receive sbus failed.\n");
     }
-    else  printf("[HARDWARE BRIDGE]   , port<0\n");
+    else  printf("[HARDWARE BRIDGE] Run sbus failed, port<0\n");
 }
 
 /*!
@@ -146,7 +143,6 @@ void HardwareBridge::run_sbus() {
 void HardwareBridge::handleControlParameter(
     const lcm::ReceiveBuffer* rbuf, const std::string& chan,
     const control_parameter_request_lcmt* msg) {
-      printf("HardwareBridge] handleControlParameter");
   (void)rbuf;
   (void)chan;
   if (msg->requestNumber <= _parameter_response_lcmt.requestNumber) {
@@ -627,16 +623,7 @@ IUSTrobotHardwareBridge::IUSTrobotHardwareBridge(RobotController* robot_ctrl, bo
  * Initialize IUST specific hardware
  */
 void IUSTrobotHardwareBridge::initHardware() {
-    _vectorNavData.quat << 0, 0, 0, 1;
-    _vectorNavData.accelerometer << 0, 0, 9.81;
-    _vectorNavData.gyro.setZero();
-
-    // Initialize YesenseIMU structure to safe defaults to prevent NaN/Garbage
-    // if the driver fails to read data immediately.
-    _YesenseIMU.acc[0] = 0; _YesenseIMU.acc[1] = 0; _YesenseIMU.acc[2] = 9.81;
-    _YesenseIMU.gyro[0] = 0; _YesenseIMU.gyro[1] = 0; _YesenseIMU.gyro[2] = 0;
-    _YesenseIMU.quat[0] = 0; _YesenseIMU.quat[1] = 0; _YesenseIMU.quat[2] = 0; _YesenseIMU.quat[3] = 1;
-
+    _vectorNavData.quat << 1, 0, 0, 0;
     printf("[IUSTHardware] I am using hardwareBridge:)\n");
 #ifndef USE_MICROSTRAIN
     printf("[IUSTHardware] Init vectornav\n");
@@ -646,30 +633,12 @@ void IUSTrobotHardwareBridge::initHardware() {
   }
 #endif
     CANable.init_can();
-    initYesense();
-    _microstrainInit = _microstrainImu.tryInit(0, 460800);
-    if (!_microstrainInit) {
-        printf("[IUSTHardware] Failed to init microstrain at 460800, trying 921600...\n");
-        _microstrainInit = _microstrainImu.tryInit(0, 921600);
-    }
-    if (!_microstrainInit) {
-         printf("[IUSTHardware] Failed to init microstrain at 921600, trying 115200...\n");
-        _microstrainInit = _microstrainImu.tryInit(0, 115200);
-    }
-
-    if (_microstrainInit) {
-        printf("[IUSTHardware] Microstrain initialized successfully!\n");
-    } else {
-        printf("[IUSTHardware] Failed to init microstrain IMU!\n");
-    }
-    // _microstrainInit = _microstrainImu.tryInit(0,460800 );//921600
+    _microstrainInit = _microstrainImu.tryInit(0,460800 );//921600
 }
 /*!
  * Main method for IUST robot hardware
  */
 void IUSTrobotHardwareBridge::run() {
-
-
     initCommon();
     initHardware();
 
@@ -718,6 +687,7 @@ void IUSTrobotHardwareBridge::run() {
                 std::string yamlName = "iust-user-parameters-full.yaml";
                 printf("[Hardware Bridge] Loaded user parameters from yaml file: %s\n", yamlName.c_str());
                 #endif
+
             } catch(std::exception& e) {
                 printf("Failed to initialize user parameters from yaml file: %s\n", e.what());
                 exit(1);
@@ -781,11 +751,9 @@ void IUSTrobotHardwareBridge::run() {
     printf("can task started\n");
 
     // microstrain
-    if(true){
+    if(_microstrainInit)
         _microstrainThread = new std::thread(&IUSTrobotHardwareBridge::runMicrostrain, this);
-        printf("_microstrainInit is true!!!!!!");
-    }
-
+        //printf("_microstrainInit is true!!!!!!");
     
 
     // robot controller start
@@ -803,10 +771,10 @@ void IUSTrobotHardwareBridge::run() {
     // rc controller
     // std::cout<<"before init bus"<< std::endl;
     _port = init_sbus(false);  // Not Simulation
-    // std::cout<<"after init bus" << std::endl;
+    std::cout<<"after init bus" << std::endl;
     PeriodicMemberFunction<HardwareBridge> sbusTask(
             &taskManager, .005, "rc_controller", &HardwareBridge::run_sbus, this);
-    // // std::cout<<"after perdiodic function"<<std::endl;
+    // std::cout<<"after perdiodic function"<<std::endl;
     sbusTask.start();
     // std::cout<<"after start"<< std::endl;
 
@@ -825,44 +793,27 @@ void IUSTrobotHardwareBridge::run() {
 void IUSTrobotHardwareBridge::runMicrostrain() {
     printf("[HardwareBridge] Start microstrain\n");
     u64 imu_times=0;
+
     while (true) {
-        // _microstrainImu.run();
-
-        // #ifdef USE_MICROSTRAIN
-        // _vectorNavData.accelerometer = _microstrainImu.acc;
-        // _vectorNavData.quat[0] = _microstrainImu.quat[1];
-        // _vectorNavData.quat[1] = _microstrainImu.quat[2];
-        // _vectorNavData.quat[2] = _microstrainImu.quat[3];
-        // _vectorNavData.quat[3] = _microstrainImu.quat[0];
-        // _vectorNavData.gyro = _microstrainImu.gyro;
-        // #endif
-
-        runYesense();
+        _microstrainImu.run();
 
         #ifdef USE_MICROSTRAIN
-        // Explicit assignment to avoid type mismatch between float array and Eigen Vector
-        _vectorNavData.accelerometer << _YesenseIMU.acc[0], _YesenseIMU.acc[1], _YesenseIMU.acc[2];
-        _vectorNavData.gyro << _YesenseIMU.gyro[0], _YesenseIMU.gyro[1], _YesenseIMU.gyro[2];
-
-        // Swizzle quaternion from [w,x,y,z] (Yesense) to [x,y,z,w] (VectorNavData)
-        _vectorNavData.quat << _YesenseIMU.quat[1], _YesenseIMU.quat[2], _YesenseIMU.quat[3], _YesenseIMU.quat[0];
+        _vectorNavData.accelerometer = _microstrainImu.acc;
+        _vectorNavData.quat[0] = _microstrainImu.quat[1];
+        _vectorNavData.quat[1] = _microstrainImu.quat[2];
+        _vectorNavData.quat[2] = _microstrainImu.quat[3];
+        _vectorNavData.quat[3] = _microstrainImu.quat[0];
+        _vectorNavData.gyro = _microstrainImu.gyro;
         #endif
-
         imu_times++;
-        if (imu_times % 1000 == 0) {
-             printf("[Yesense] Acc: %.2f, %.2f, %.2f | Gyro: %.2f, %.2f, %.2f | Quat: %.2f, %.2f, %.2f, %.2f\n",
-                    _YesenseIMU.acc[0], _YesenseIMU.acc[1], _YesenseIMU.acc[2],
-                    _YesenseIMU.gyro[0], _YesenseIMU.gyro[1], _YesenseIMU.gyro[2],
-                    _YesenseIMU.quat[0], _YesenseIMU.quat[1], _YesenseIMU.quat[2], _YesenseIMU.quat[3]);
-        }
         #ifdef IMU_DEBUG_SHOW
         if(imu_times%1000==0)
         {
             printf("Iteration stamp:\t%d\n",(int)imu_times);
             printf("--------------------------------------------------\n");
-            printf("ACC = [%f, %f, %f]\n", _WitMotionImu.acc[0], _WitMotionImu.acc[1], _WitMotionImu.acc[2]);
-            printf("QUAT = [%f, %f, %f, %f]\n", _WitMotionImu.quat[0], _WitMotionImu.quat[1], _WitMotionImu.quat[2], _WitMotionImu.quat[3]);
-            printf("GYRO =[%f, %f, %f]\n", _WitMotionImu.gyro[0], _WitMotionImu.gyro[1], _WitMotionImu.gyro[2]);
+            printf("ACC = [%f, %f, %f]\n", _imuData.accelerometer[0], _imuData.accelerometer[1], _imuData.accelerometer[2]);
+            printf("QUAT = [%f, %f, %f, %f]\n", _imuData.quat[0], _imuData.quat[1], _imuData.quat[2], _imuData.quat[3]);
+            printf("GYRO =[%f, %f, %f]\n", _imuData.gyro[0], _imuData.gyro[1], _imuData.gyro[2]);
             printf("--------------------------------------------------\n");
         }
         #endif
@@ -883,7 +834,6 @@ void IUSTrobotHardwareBridge::runCAN() {
    
     memcpy(cmd, &_canCommand, sizeof(can_command_t));
     // Send and Receive data and commands through CAN hardware for leg-level controller
-    // CANable.Torque_limit_checker(cmd,data);
     CANable.can_send_receive(cmd, data);
     memcpy(&_canData, data, sizeof(can_data_t));
     // std::cout<<data->q_abad[0]<<std::endl;
@@ -921,99 +871,5 @@ void IUSTrobotHardwareBridge::runCAN() {
     // _spiLcm.publish("spi_data", data);
     // _spiLcm.publish("spi_command", cmd);
 }
-
-void IUSTrobotHardwareBridge::initYesense(){
-
-  speed_t speed = B921600;
-  // dev = "/dev/ttySC1";
-  fd_y = open("/dev/ttyUSB0", O_RDWR | O_NONBLOCK| O_NOCTTY | O_NDELAY);
-  if (fd_y < 0)	{
-      printf("Can't Open Serial Port!\n");
-      exit(0);
-  }
-
-  // printf("open serial port to decode msg!\n");
-  //save to oldtio
-  tcgetattr(fd_y, &oldtio);
-  bzero(&newtio, sizeof(newtio));
-  newtio.c_cflag = speed | CS8 | CLOCAL | CREAD;
-  newtio.c_cflag &= ~CSTOPB;
-  newtio.c_cflag &= ~PARENB;
-  newtio.c_iflag = IGNPAR;
-  newtio.c_oflag = 0;
-  tcflush(fd_y,TCIFLUSH);
-  tcsetattr(fd_y,TCSAFLUSH,&newtio);
-  tcgetattr(fd_y,&oldtio);
-
-  memset(buffer,0,sizeof(buffer));
-
-}
-
-void IUSTrobotHardwareBridge::runYesense(){
-  nread = read(fd_y, buffer, RX_BUF_LEN);
-	if(nread > 0)
-	{
-	    // printf("nread = %d\n", nread);
-	    memcpy(g_recv_buf + g_recv_buf_idx, buffer, nread);
-	    g_recv_buf_idx += nread;
-	}
-
-        cnt = g_recv_buf_idx;
-        pos = 0;
-        if(cnt < YIS_OUTPUT_MIN_BYTES)
-        {
-            // TODO : Continue in a loop
-            // continue;
-            printf("[WARNING]: NO DATA FROM YESENSE IMU\n");
-        }
-
-        while(cnt > (unsigned int)0)
-        {
-            int ret = analysis_data(g_recv_buf + pos, cnt, &g_output_info);
-            if(analysis_done == ret)	/*未查找到帧头*/
-            {
-                pos++;
-                cnt--;
-            }
-            else if(data_len_err == ret)
-            {
-                break;
-            }
-            else if(crc_err == ret || analysis_ok == ret)	 /*删除已解析完的完整一帧*/
-            {
-                output_data_header_t *header = (output_data_header_t *)(g_recv_buf + pos);
-                unsigned int frame_len = header->len + YIS_OUTPUT_MIN_BYTES;
-                cnt -= frame_len;
-                pos += frame_len;
-                //memcpy(g_recv_buf, g_recv_buf + pos, cnt);
-
-                if(analysis_ok == ret)
-                {
-
-                  _YesenseIMU.acc[0] = g_output_info.accel.x;
-                  _YesenseIMU.acc[1] = g_output_info.accel.y;
-                  _YesenseIMU.acc[2] = g_output_info.accel.z;
-
-                  _YesenseIMU.gyro[0] = g_output_info.angle_rate.x*3.1415/180;
-                  _YesenseIMU.gyro[1] = g_output_info.angle_rate.y*3.1415/180;
-                  _YesenseIMU.gyro[2] = g_output_info.angle_rate.z*3.1415/180;
-
-                  _YesenseIMU.quat[0] = g_output_info.attitude.quaternion_data0;
-                  _YesenseIMU.quat[1] = g_output_info.attitude.quaternion_data1;
-                  _YesenseIMU.quat[2] = g_output_info.attitude.quaternion_data2;
-                  _YesenseIMU.quat[3] = g_output_info.attitude.quaternion_data3;
-
-        //             printf("pitch: %f, roll: %f, yaw: %f\n",
-			  // g_output_info.attitude.pitch, g_output_info.attitude.roll, g_output_info.attitude.yaw);
-                }
-	    }
-	}
-
-        memcpy(g_recv_buf, g_recv_buf + pos, cnt);
-        g_recv_buf_idx = cnt;
-	tcflush(fd_y,TCIFLUSH);
-	usleep(10000);
-}
-
 
 #endif
