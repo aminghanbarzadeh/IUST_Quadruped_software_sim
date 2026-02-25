@@ -61,15 +61,6 @@ void VectorNavOrientationEstimator<T>::run() {
   this->_stateEstimatorData.result->orientation = 
     ori::quatProduct(_ori_ini_inv, this->_stateEstimatorData.result->orientation);
 
-  // Apply a pitch bias to correct for drift.
-  // The user requested a 2-degree pitch bias.
-  // If the robot drifts backwards, this positive bias (nose up) might be correct if the controller compensates by pitching down.
-  // If the drift worsens, try negating this value ( -2.0 ).
-  T pitch_bias = T(2.0) * T(M_PI) / T(180.0);
-  Quat<T> q_pitch_bias;
-  q_pitch_bias << std::cos(pitch_bias / T(2.0)), T(0), std::sin(pitch_bias / T(2.0)), T(0); // w, x, y, z
-  this->_stateEstimatorData.result->orientation = ori::quatProduct(this->_stateEstimatorData.result->orientation, q_pitch_bias);
-
   this->_stateEstimatorData.result->rpy =
       ori::quatToRPY(this->_stateEstimatorData.result->orientation);
 

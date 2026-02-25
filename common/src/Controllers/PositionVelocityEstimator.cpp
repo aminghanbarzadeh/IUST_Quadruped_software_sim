@@ -137,6 +137,7 @@ void LinearKFPositionVelocityEstimator<T>::run() {
     Q.block(qindex, qindex, 3, 3) =
         (T(1) + (T(1) - trust) * high_suspect_number) * Q.block(qindex, qindex, 3, 3);
     R.block(rindex1, rindex1, 3, 3) = 1 * R.block(rindex1, rindex1, 3, 3);
+
     R.block(rindex2, rindex2, 3, 3) =
         (T(1) + (T(1) - trust) * high_suspect_number) * R.block(rindex2, rindex2, 3, 3);
     R(rindex3, rindex3) =
