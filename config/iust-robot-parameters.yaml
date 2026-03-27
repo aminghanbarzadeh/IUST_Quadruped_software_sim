@@ -17,12 +17,12 @@ recovery_kp: [380, 380, 380]                # Proportional gain for the robot's 
 recovery_kd: [15, 25, 25]                   # Derivative gain for the robot's cartesian coordinates in recovery mode
 
 
-foot_height_sensor_noise      :  0.001    # Noise for the foot height sensor
-foot_process_noise_position   :  0.002    # Noise for the foot process position
-foot_sensor_noise_position    :  0.001    # Noise for the foot sensor position
-foot_sensor_noise_velocity    :  0.1      # Noise for the foot sensor velocity
-imu_process_noise_position    :  0.02     # Noise for the IMU process position
-imu_process_noise_velocity    :  0.02     # Noise for the IMU process velocity
+foot_height_sensor_noise      :  0.0005   # Noise for the foot height sensor (Lower = Stiffer height estimate)
+foot_process_noise_position   :  0.0002   # Noise for the foot process position (Lower = Assume feet don't move/slip)
+foot_sensor_noise_position    :  0.0001   # Noise for the foot sensor position (Lower = Trust foot position kinematics more)
+foot_sensor_noise_velocity    :  0.01     # Noise for the foot sensor velocity (Lower = Trust feet/zero velocity more)
+imu_process_noise_position    :  0.1      # Noise for the IMU process position (Higher = Trust velocity integration less)
+imu_process_noise_velocity    :  0.1      # Noise for the IMU process velocity (Higher = Trust accelerometer integration less)
 
 kpCOM: [50, 50, 50]          # Proportional gain for the robot's center of mass
 kdCOM: [10, 10, 10]          # Derivative gain for the robot's center of mass
