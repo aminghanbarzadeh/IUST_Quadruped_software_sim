@@ -60,6 +60,13 @@ void LocomotionCtrl<T>::_ContactTaskUpdate(void* input, ControlFSMData<T> & data
   for(size_t leg(0); leg<4; ++leg){
     if(_input_data->contact_state[leg] > 0.){ // Contact
       _foot_contact[leg]->setRFDesired((DVec<T>)(_input_data->Fr_des[leg]));
+      ((SingleContact<T>*)_foot_contact[leg])->setFootStateDes((DVec<T>)_input_data->pFoot_des[leg], (DVec<T>)_input_data->vFoot_des[leg]);
+
+      DVec<T> Kp(3), Kd(3);
+      Kp << (T)300., (T)300., (T)300.;
+      Kd << (T)10., (T)10., (T)10.;
+      ((SingleContact<T>*)_foot_contact[leg])->setKpKd(Kp, Kd);
+
       _foot_contact[leg]->UpdateContactSpec();
       WBCtrl::_contact_list.push_back(_foot_contact[leg]);
 
